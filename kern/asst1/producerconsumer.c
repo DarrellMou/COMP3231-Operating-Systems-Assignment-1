@@ -22,7 +22,9 @@ data_item_t * item_buffer[BUFFER_SIZE];
 
 volatile int write_head, read_tail;
 
-
+struct cv *empty;
+struct cv *full;
+struct lock *l;
 
 /* The following functions test if the buffer is full or empty. They
    are obviously not synchronised in any way */
@@ -45,13 +47,16 @@ data_item_t * consumer_receive(void)
 {
         data_item_t * item;
 
-
+        lock_acquire(l);
         while(is_empty()) {
-                /* busy wait */
+                cv_wait(empty, l);
         }
         
         item = item_buffer[read_tail];
         read_tail = (read_tail + 1) % BUFFER_SIZE;
+
+        cv_signal(full, l);
+        lock_release(l);
 
         return item;
 }
@@ -64,11 +69,16 @@ data_item_t * consumer_receive(void)
 
 void producer_send(data_item_t *item)
 {
+        lock_acquire(l);
         while(is_full()) {
-                /* busy wait */
+                cv_wait(full, l);
         }
+
         item_buffer[write_head] = item;
         write_head = (write_head + 1) % BUFFER_SIZE;
+
+        cv_signal(empty, l);
+        lock_release(l);
 }
 
 /* Perform any initialisation (e.g. of global data or synchronisation
@@ -79,11 +89,16 @@ void producer_send(data_item_t *item)
 void producerconsumer_startup(void)
 {
         write_head = read_tail = 0;
+        empty = cv_create("empty");
+        full = cv_create("full");
+        l = lock_create("lock");
 }
 
 /* Perform your clean-up here */
 void producerconsumer_shutdown(void)
 {
-        
+        cv_destroy(empty);
+        cv_destroy(full);
+        lock_destroy(l);
 }
 

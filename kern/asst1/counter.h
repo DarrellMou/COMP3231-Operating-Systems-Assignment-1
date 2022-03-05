@@ -9,7 +9,6 @@ struct sync_counter {
            that may be required to synchronise your counters */
 };
 
-
 /* The function interface to the synchronised counter.
    See counter.c for a description of the function behaviour. */
 

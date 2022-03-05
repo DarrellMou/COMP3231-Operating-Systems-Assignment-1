@@ -7,13 +7,12 @@
 #include <thread.h>
 #include <synch.h>
 
-
 /*
  * ********************************************************************
  * INSERT ANY GLOBAL VARIABLES THAT YOU MAY REQUIRE HERE
  * ********************************************************************
  */
-
+struct lock *l;
 
 /*
  * counter_initialise() allocates a synchronised counter and initialises
@@ -41,6 +40,7 @@ struct sync_counter * counter_initialise(int val)
          * INSERT ANY INITIALISATION CODE YOU MAY REQUIRE HERE
          * ********************************************************************
          */
+        l = lock_create("lock");
         
         return sc_ptr;
 }
@@ -64,6 +64,8 @@ int counter_read_and_destroy(struct sync_counter *sc_ptr)
          * INSERT ANY CLEANUP CODE YOU MAY REQUIRE HERE
          * **********************************************************************
          */
+        lock_destroy(l);
+
         kfree(sc_ptr);
         return count;
 }
@@ -75,7 +77,9 @@ int counter_read_and_destroy(struct sync_counter *sc_ptr)
 
 void counter_increment(struct sync_counter *sc_ptr)
 {
+        lock_acquire(l);
         sc_ptr->counter = sc_ptr->counter + 1;
+        lock_release(l);
 }
 
 /*
@@ -85,6 +89,8 @@ void counter_increment(struct sync_counter *sc_ptr)
 
 void counter_decrement(struct sync_counter *sc_ptr)
 {
+        lock_acquire(l);
         sc_ptr->counter = sc_ptr->counter - 1;
+        lock_release(l);
 }
 

@@ -4,12 +4,21 @@
 #include <synch.h>
 #include "cafe.h"
 
+#include <lib.h>
 /* Some variables shared between threads */
 
 static unsigned int ticket_counter; /* the next customer's ticket */
 static unsigned int next_serving;   /* the barista's next ticket to serve */
 static unsigned current_customers;  /* customers remaining in cafe */
 
+struct semaphore *waiting;
+int customer[1000000] = {0};
+int barista[1000000] = {0};
+struct lock *l1;
+struct cv *waiting1;
+
+struct lock *l2;
+struct cv *waiting2;
 
 /*
  * get_ticket: generates an ticket number for a customers next order.
@@ -37,6 +46,12 @@ unsigned int next_ticket_to_serve(void)
 
         next_serving = next_serving + 1;
         t = next_serving;
+
+        lock_acquire(l1);
+        while(customer[t] == 0) {
+                cv_wait(waiting1, l1);
+        }
+        lock_release(l1);
 
         return t;
 }
@@ -75,22 +90,40 @@ void leave_cafe(unsigned long customer_num)
 
 unsigned long wait_to_order(unsigned long customer_number, unsigned int ticket)
 {
-        unsigned long barista_number = 0;
-
         (void) customer_number;
         (void) ticket;
-      
-        return barista_number;
+
+        lock_acquire(l1);
+        customer[ticket] = customer_number + 1;
+        cv_signal(waiting1, l1);
+        lock_release(l1);
+
+        P(waiting);
+        while (waiting->sem_count < 1) {
+        }
+
+        lock_acquire(l1);
+        while (barista[ticket] == 0) {
+                cv_wait(waiting2, l1);
+        }
+        lock_release(l1);
+
+        return barista[ticket] - 1;
 }
 
 unsigned long announce_serving_ticket(unsigned long barista_number, unsigned int serving)
 {
-        unsigned long cust = 0;
-
         (void) barista_number;
         (void) serving;
 
-        return cust;
+        V(waiting);
+
+        lock_acquire(l1);
+        barista[serving] = barista_number + 1;
+        cv_signal(waiting2, l1);
+        lock_release(l1);
+
+        return customer[serving] - 1;
 }
 
 /* 
@@ -105,6 +138,13 @@ void cafe_startup(void)
         next_serving = 0;
         current_customers = NUM_CUSTOMERS;
 
+        waiting = sem_create("waiting", 1);
+
+        l1 = lock_create("lock1");
+        waiting1 = cv_create("waiting1");
+
+        l2 = lock_create("lock1");
+        waiting2 = cv_create("waiting2");
 }   
 
 /*
@@ -116,5 +156,12 @@ void cafe_startup(void)
 
 void cafe_shutdown(void)
 {
+        sem_destroy(waiting);
+
+        lock_destroy(l1);
+        cv_destroy(waiting1);
+
+        lock_destroy(l2);
+        cv_destroy(waiting2);
 }
                               
